@@ -91,6 +91,7 @@ public class Node implements NodeInterface {
     private String nodeName;
     private DatagramSocket socket;
     private Map<String, String> keyValueStore = new HashMap<>();
+    private Map<String, String> addressStore = new HashMap<>();
     private List<String> relayStack = new ArrayList<>();
 
     public void setNodeName(String nodeName) throws Exception {
@@ -148,8 +149,50 @@ public class Node implements NodeInterface {
 
     private void sendNearestResponse(String transactionID, InetAddress address, int port, String hashID) throws Exception {
         String response = transactionID + " O " + "0 N:test 0 127.0.0.1:20110 ";  // Example
+        //String response = transactionID + " O " + getNearestNodes(hashID);
         sendMessage(response, address, port);
     }
+
+    private String getNearestNodes(String hashID) {
+        List<Map.Entry<String, String>> nodes = new ArrayList<>(addressStore.entrySet());
+        nodes.sort((a, b) -> {
+            try {
+                int distanceA = calculateDistance(computeHashID(a.getKey()), hashID);
+                int distanceB = calculateDistance(computeHashID(b.getKey()), hashID);
+                return Integer.compare(distanceA, distanceB);
+            } catch (Exception e) {
+                return 0;
+            }
+        });
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < Math.min(3, nodes.size()); i++) {
+            Map.Entry<String, String> entry = nodes.get(i);
+            sb.append("0 ").append(entry.getKey()).append(" 0 ").append(entry.getValue()).append(" ");
+        }
+        return sb.toString();
+    }
+
+    /*private int calculateDistance(String hash1, String hash2) {
+        int distance = 0;
+        for (int i = 0; i < hash1.length(); i++) {
+            if (hash1.charAt(i) != hash2.charAt(i)) {
+                distance = (256 - i * 4) + Integer.bitCount(hash1.charAt(i) ^ hash2.charAt(i));
+                break;
+            }
+        }
+        return distance;
+    }*/
+
+    private int calculateDistance(String hash1, String hash2) {
+        int distance = 0;
+        for (int i = 0; i < hash1.length(); i++) {
+            int diff = hash1.charAt(i) ^ hash2.charAt(i);
+            distance += Integer.bitCount(diff);
+        }
+        return distance;
+    }
+
+
 
     private void sendKeyExistenceResponse(String transactionID, InetAddress address, int port, String key) throws Exception {
         String exists = keyValueStore.containsKey(key) ? "Y" : "N";
@@ -163,10 +206,27 @@ public class Node implements NodeInterface {
         sendMessage(response, address, port);
     }
 
+    private String sendReadRequest(String nodeName, String address, String key) throws Exception {
+        String transactionID = String.valueOf(new Random().nextInt(10000));
+        String message = transactionID + " R " + key;
+        InetAddress inetAddress = InetAddress.getByName(address.split(":")[0]);
+        int port = Integer.parseInt(address.split(":")[1]);
+        sendMessage(message, inetAddress, port);
+        return null;
+    }
+
     private void sendWriteResponse(String transactionID, InetAddress address, int port, String key, String value) throws Exception {
         keyValueStore.put(key, value);
         String response = transactionID + " X R ";
         sendMessage(response, address, port);
+    }
+
+    private void sendWriteRequest(String nodeName, String address, String key, String value) throws Exception {
+        String transactionID = String.valueOf(new Random().nextInt(10000));
+        String message = transactionID + " W " + key + " " + value;
+        InetAddress inetAddress = InetAddress.getByName(address.split(":")[0]);
+        int port = Integer.parseInt(address.split(":")[1]);
+        sendMessage(message, inetAddress, port);
     }
 
     private void sendCASResponse(String transactionID, InetAddress address, int port, String key, String currentValue, String newValue) throws Exception {
@@ -211,12 +271,50 @@ public class Node implements NodeInterface {
         return keyValueStore.containsKey(key);
     }
 
-    public String read(String key) throws Exception {
+    /*public String read(String key) throws Exception {
         return keyValueStore.get(key);
+    }*/
+
+
+    public String read(String key) throws Exception {
+        String value = keyValueStore.get(key);
+        if (value == null) {
+            System.out.println("Trying to find nearest nodes to read from...");
+            String nearestNodes = getNearestNodes(computeHashID(key));
+            if (!nearestNodes.isEmpty()) {
+                String[] parts = nearestNodes.split(" ");
+                for (int i = 0; i < parts.length; i += 4) {
+                    String nodeName = parts[i + 1];
+                    String nodeAddress = parts[i + 3];
+                    value = sendReadRequest(nodeName, nodeAddress, key);
+                    if (value != null) {
+                        System.out.println("Successfully read from node: " + nodeName);
+                        return value;
+                    }
+                }
+            }
+        }
+        return value;
     }
+
+    /*public boolean write(String key, String value) throws Exception {
+        keyValueStore.put(key, value);
+        return true;
+    }*/
 
     public boolean write(String key, String value) throws Exception {
         keyValueStore.put(key, value);
+        String hashID = computeHashID(key);
+        String nearestNodes = getNearestNodes(hashID);
+
+        if (!nearestNodes.isEmpty()) {
+            String[] parts = nearestNodes.split(" ");
+            for (int i = 0; i < parts.length; i += 4) {
+                String nodeName = parts[i + 1];
+                String nodeAddress = parts[i + 3];
+                sendWriteRequest(nodeName, nodeAddress, key, value);
+            }
+        }
         return true;
     }
 
