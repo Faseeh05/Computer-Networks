@@ -172,13 +172,22 @@ public class Node implements NodeInterface {
         return sb.toString();
     }
 
-    private int calculateDistance(String hash1, String hash2) {
+    /*private int calculateDistance(String hash1, String hash2) {
         int distance = 0;
         for (int i = 0; i < hash1.length(); i++) {
             if (hash1.charAt(i) != hash2.charAt(i)) {
                 distance = (256 - i * 4) + Integer.bitCount(hash1.charAt(i) ^ hash2.charAt(i));
                 break;
             }
+        }
+        return distance;
+    }*/
+
+    private int calculateDistance(String hash1, String hash2) {
+        int distance = 0;
+        for (int i = 0; i < hash1.length(); i++) {
+            int diff = hash1.charAt(i) ^ hash2.charAt(i);
+            distance += Integer.bitCount(diff);
         }
         return distance;
     }
@@ -195,6 +204,15 @@ public class Node implements NodeInterface {
         String value = keyValueStore.get(key);
         String response = value != null ? transactionID + " S Y " + value : transactionID + " S N ";
         sendMessage(response, address, port);
+    }
+
+    private String sendReadRequest(String nodeName, String address, String key) throws Exception {
+        String transactionID = String.valueOf(new Random().nextInt(10000));
+        String message = transactionID + " R " + key;
+        InetAddress inetAddress = InetAddress.getByName(address.split(":")[0]);
+        int port = Integer.parseInt(address.split(":")[1]);
+        sendMessage(message, inetAddress, port);
+        return null;  // Placeholder for actual read response handling
     }
 
     private void sendWriteResponse(String transactionID, InetAddress address, int port, String key, String value) throws Exception {
@@ -245,8 +263,30 @@ public class Node implements NodeInterface {
         return keyValueStore.containsKey(key);
     }
 
-    public String read(String key) throws Exception {
+    /*public String read(String key) throws Exception {
         return keyValueStore.get(key);
+    }*/
+
+
+    public String read(String key) throws Exception {
+        String value = keyValueStore.get(key);
+        if (value == null) {
+            System.out.println("Trying to find nearest nodes to read from...");
+            String nearestNodes = getNearestNodes(computeHashID(key));
+            if (!nearestNodes.isEmpty()) {
+                String[] parts = nearestNodes.split(" ");
+                for (int i = 0; i < parts.length; i += 4) {
+                    String nodeName = parts[i + 1];
+                    String nodeAddress = parts[i + 3];
+                    value = sendReadRequest(nodeName, nodeAddress, key);
+                    if (value != null) {
+                        System.out.println("Successfully read from node: " + nodeName);
+                        return value;
+                    }
+                }
+            }
+        }
+        return value;
     }
 
     public boolean write(String key, String value) throws Exception {
