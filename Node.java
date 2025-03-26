@@ -91,6 +91,7 @@ public class Node implements NodeInterface {
     private String nodeName;
     private DatagramSocket socket;
     private Map<String, String> keyValueStore = new HashMap<>();
+    private Map<String, String> addressStore = new HashMap<>();
     private List<String> relayStack = new ArrayList<>();
 
     public void setNodeName(String nodeName) throws Exception {
@@ -148,8 +149,41 @@ public class Node implements NodeInterface {
 
     private void sendNearestResponse(String transactionID, InetAddress address, int port, String hashID) throws Exception {
         String response = transactionID + " O " + "0 N:test 0 127.0.0.1:20110 ";  // Example
+        //String response = transactionID + " O " + getNearestNodes(hashID);
         sendMessage(response, address, port);
     }
+
+    private String getNearestNodes(String hashID) {
+        List<Map.Entry<String, String>> nodes = new ArrayList<>(addressStore.entrySet());
+        nodes.sort((a, b) -> {
+            try {
+                int distanceA = calculateDistance(computeHashID(a.getKey()), hashID);
+                int distanceB = calculateDistance(computeHashID(b.getKey()), hashID);
+                return Integer.compare(distanceA, distanceB);
+            } catch (Exception e) {
+                return 0;
+            }
+        });
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < Math.min(3, nodes.size()); i++) {
+            Map.Entry<String, String> entry = nodes.get(i);
+            sb.append("0 ").append(entry.getKey()).append(" 0 ").append(entry.getValue()).append(" ");
+        }
+        return sb.toString();
+    }
+
+    private int calculateDistance(String hash1, String hash2) {
+        int distance = 0;
+        for (int i = 0; i < hash1.length(); i++) {
+            if (hash1.charAt(i) != hash2.charAt(i)) {
+                distance = (256 - i * 4) + Integer.bitCount(hash1.charAt(i) ^ hash2.charAt(i));
+                break;
+            }
+        }
+        return distance;
+    }
+
+
 
     private void sendKeyExistenceResponse(String transactionID, InetAddress address, int port, String key) throws Exception {
         String exists = keyValueStore.containsKey(key) ? "Y" : "N";
