@@ -24,15 +24,6 @@ interface NodeInterface {
     boolean CAS(String key, String currentValue, String newValue) throws Exception;
 }
 
-// IN2011 Computer Networks
-// Coursework 2024/2025
-//
-// Submission by
-//  Muhammed Faseeh Arshed
-//  230011074
-//  muhammed.arshed@city.ac.uk
-
-
 public class Node implements NodeInterface {
 
     private String nodeId;
@@ -101,9 +92,7 @@ public class Node implements NodeInterface {
                 case "G" -> sendResponse(address, port, txId + " H " + wrap(nodeId));
                 case "H" -> {
                     String incoming = unwrap(parts.length > 2 ? parts[2] : "");
-                    if (incoming != null) {
-                        nodeDirectory.put(incoming, new InetSocketAddress(address, port));
-                    }
+                    if (incoming != null) nodeDirectory.put(incoming, new InetSocketAddress(address, port));
                 }
                 case "W" -> handleWrite(txId, parts.length > 2 ? parts[2] : "", address, port);
                 case "R" -> handleRead(txId, parts.length > 2 ? parts[2] : "", address, port);
@@ -120,18 +109,14 @@ public class Node implements NodeInterface {
                     sendResponse(address, port, txId + " F " + (key != null && dataStore.containsKey(key) ? "Y" : "N"));
                 }
                 case "F" -> {
-                    if (parts.length > 2 && "Y".equals(parts[2].trim())) {
-                        lastExistenceCheck = true;
-                    }
+                    if (parts.length > 2 && "Y".equals(parts[2].trim())) lastExistenceCheck = true;
                 }
                 case "N" -> handleNearestNodes(txId, parts.length > 2 ? parts[2] : "", address, port);
                 case "O" -> {
-                    if (parts.length > 2) {
-                        nearbyNodes.put(txId, parts[2]);
-                    }
+                    if (parts.length > 2) nearbyNodes.put(txId, parts[2]);
                 }
                 case "V" -> forwardMessage(parts.length > 2 ? parts[2] : "", address, port);
-                case "I" -> {} // Optional ping/heartbeat
+                case "I" -> {}
             }
         } catch (Exception e) {
             if (debug) System.err.println("⚠️ Error: " + e.getMessage());
@@ -162,16 +147,10 @@ public class Node implements NodeInterface {
         }
     }
 
-    private void handleNearestNodes(String tx, String hash, InetAddress addr, int port) throws Exception {
+    private void handleNearestNodes(String tx, String hash, InetAddress addr, int port) {
         List<String> nodeList = new ArrayList<>(nodeDirectory.keySet());
         nodeList.removeIf(name -> !name.startsWith("N:"));
-        nodeList.sort(Comparator.comparingInt(name -> {
-            try {
-                return computeDistance(hash, hashify(name));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }));
+        nodeList.sort(Comparator.comparingInt(name -> safeDistance(hash, name)));
 
         StringBuilder reply = new StringBuilder(tx + " O");
         for (int i = 0; i < Math.min(3, nodeList.size()); i++) {
@@ -181,6 +160,14 @@ public class Node implements NodeInterface {
         }
 
         sendResponse(addr, port, reply.toString());
+    }
+
+    private int safeDistance(String hash, String name) {
+        try {
+            return computeDistance(hash, hashify(name));
+        } catch (Exception e) {
+            return Integer.MAX_VALUE;
+        }
     }
 
     private void forwardMessage(String data, InetAddress addr, int port) {
