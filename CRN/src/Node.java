@@ -209,39 +209,6 @@ public class Node implements NodeInterface {
         return (space != -1 && wrapped.length() > space + 1) ? wrapped.substring(space + 1, wrapped.length() - 1) : null;
     }
 
-    private String[] extractKeyValue(String input) {
-        try {
-            String[] parts = input.trim().split(" ", 4);
-            if (parts.length == 4) return new String[]{parts[1], parts[3]};
-        } catch (Exception ignored) {}
-        return null;
-    }
-
-    @Override
-    public boolean isActive(String nodeName) {
-        return nodeDirectory.containsKey(nodeName);
-    }
-
-    @Override
-    public void pushRelay(String nodeName) {
-        relayStack.push(nodeName);
-    }
-
-    @Override
-    public void popRelay() {
-        if (!relayStack.isEmpty()) relayStack.pop();
-    }
-
-    @Override
-    public boolean exists(String key) throws Exception {
-        return attemptLookup(key, true) != null;
-    }
-
-    @Override
-    public String read(String key) throws Exception {
-        return attemptLookup(key, false);
-    }
-
     private String attemptLookup(String key, boolean existenceCheck) throws Exception {
         if (dataStore.containsKey(key)) return dataStore.get(key);
 
@@ -304,6 +271,39 @@ public class Node implements NodeInterface {
         return null;
     }
 
+    private String[] extractKeyValue(String input) {
+        try {
+            String[] parts = input.trim().split(" ", 4);
+            if (parts.length == 4) return new String[]{parts[1], parts[3]};
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    @Override
+    public boolean isActive(String nodeName) {
+        return nodeDirectory.containsKey(nodeName);
+    }
+
+    @Override
+    public void pushRelay(String nodeName) {
+        relayStack.push(nodeName);
+    }
+
+    @Override
+    public void popRelay() {
+        if (!relayStack.isEmpty()) relayStack.pop();
+    }
+
+    @Override
+    public boolean exists(String key) throws Exception {
+        return attemptLookup(key, true) != null;
+    }
+
+    @Override
+    public String read(String key) throws Exception {
+        return attemptLookup(key, false);
+    }
+
     @Override
     public boolean write(String key, String value) {
         dataStore.put(key, value);
@@ -320,6 +320,18 @@ public class Node implements NodeInterface {
             return true;
         }
         return false;
+    }
+
+    private void startBackgroundListener() {
+        listenerThread = new Thread(() -> {
+            try {
+                while (true) handleIncomingMessages(0);
+            } catch (Exception e) {
+                if (debug) System.err.println("🧵 Listener error: " + e.getMessage());
+            }
+        });
+        listenerThread.setDaemon(true);
+        listenerThread.start();
     }
 
     private String hashify(String value) throws Exception {
@@ -344,21 +356,5 @@ public class Node implements NodeInterface {
 
     private String generateTxnId() {
         return "" + (char) ('A' + random.nextInt(26)) + (char) ('A' + random.nextInt(26));
-    }
-
-    public Set<String> getKnownNodeNames() {
-        return nodeDirectory.keySet();
-    }
-
-    private void startBackgroundListener() {
-        listenerThread = new Thread(() -> {
-            try {
-                while (true) handleIncomingMessages(0);
-            } catch (Exception e) {
-                if (debug) System.err.println("🧵 Listener error: " + e.getMessage());
-            }
-        });
-        listenerThread.setDaemon(true);
-        listenerThread.start();
     }
 }
