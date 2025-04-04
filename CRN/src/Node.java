@@ -273,10 +273,8 @@ public class Node implements NodeInterface {
 
     private String[] getKeyValuePair(String input) {
         try {
-            String[] tokens = input.split(" ", 4);
-            if (tokens.length == 4) {
-                return new String[] { tokens[1].trim(), tokens[3].trim() };
-            }
+            String[] parts = input.trim().split(" ", 4);
+            if (parts.length == 4) return new String[]{parts[1], parts[3]};
         } catch (Exception ignored) {}
         return null;
     }
