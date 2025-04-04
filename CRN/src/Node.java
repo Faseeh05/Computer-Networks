@@ -164,7 +164,7 @@ public class Node implements NodeInterface {
 
     private int safeDistance(String hash, String name) {
         try {
-            return computeDistance(hash, computeHash(name));
+            return calculateDistance(hash, computeHash(name));
         } catch (Exception e) {
             return Integer.MAX_VALUE;
         }
@@ -334,6 +334,12 @@ public class Node implements NodeInterface {
         listenerThread.start();
     }
 
+    private String generateTxnId() {
+        char first = (char) ('A' + random.nextInt(26));
+        char second = (char) ('A' + random.nextInt(26));
+        return new StringBuilder().append(first).append(second).toString();
+    }
+
     private String computeHash(String value) throws Exception {
         MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
         byte[] hashBytes = sha256.digest(value.getBytes("UTF-8"));
@@ -345,19 +351,16 @@ public class Node implements NodeInterface {
         return hash.toString();
     }
 
-    private String generateTxnId() {
-        return "" + (char) ('A' + random.nextInt(26)) + (char) ('A' + random.nextInt(26));
-    }
-
-    private int computeDistance(String h1, String h2) {
-        for (int i = 0; i < h1.length(); i++) {
-            int d1 = Integer.parseInt(h1.substring(i, i + 1), 16);
-            int d2 = Integer.parseInt(h2.substring(i, i + 1), 16);
+    private int calculateDistance(String hash1, String hash2) {
+        int maxBits = 256;
+        for (int i = 0; i < hash1.length(); i++) {
+            int d1 = Integer.parseInt(hash1.substring(i, i + 1), 16);
+            int d2 = Integer.parseInt(hash2.substring(i, i + 1), 16);
             int xor = d1 ^ d2;
             for (int bit = 3; bit >= 0; bit--) {
                 if (((xor >> bit) & 1) == 1) return i * 4 + (3 - bit);
             }
         }
-        return 256;
+        return maxBits;
     }
 }
