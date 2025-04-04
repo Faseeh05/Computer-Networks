@@ -124,7 +124,7 @@ public class Node implements NodeInterface {
     }
 
     private void handleWrite(String tx, String payload, InetAddress address, int port) {
-        String[] kv = getKeyValuePair(payload);
+        String[] kv = extractKeyValue(payload);
         if (kv != null) {
             dataStore.put(kv[0], kv[1]);
             if (kv[0].startsWith("N:")) {
@@ -271,7 +271,7 @@ public class Node implements NodeInterface {
         return null;
     }
 
-    private String[] getKeyValuePair(String input) {
+    private String[] extractKeyValue(String input) {
         try {
             String[] parts = input.trim().split(" ", 4);
             if (parts.length == 4) return new String[]{parts[1], parts[3]};
@@ -311,12 +311,12 @@ public class Node implements NodeInterface {
     }
 
     @Override
-    public boolean CAS(String key, String currentValue, String updatedValue) {
+    public boolean CAS(String key, String currentValue, String newValue) {
         if (!dataStore.containsKey(key)) {
-            dataStore.put(key, updatedValue);
+            dataStore.put(key, newValue);
             return true;
         } else if (dataStore.get(key).equals(currentValue)) {
-            dataStore.put(key, updatedValue);
+            dataStore.put(key, newValue);
             return true;
         }
         return false;
