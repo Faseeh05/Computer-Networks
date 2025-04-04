@@ -311,17 +311,14 @@ public class Node implements NodeInterface {
     }
 
     @Override
-    public boolean CAS(String key, String expectedValue, String updatedValue) {
-        String existingValue = dataStore.get(key);
-        if (existingValue == null) {
-            dataStore.put(key, updatedValue);
+    public boolean CAS(String key, String currentValue, String newValue) {
+        if (!dataStore.containsKey(key)) {
+            dataStore.put(key, newValue);
+            return true;
+        } else if (dataStore.get(key).equals(currentValue)) {
+            dataStore.put(key, newValue);
             return true;
         }
-        if (existingValue.equals(expectedValue)) {
-            dataStore.put(key, updatedValue);
-            return true;
-        }
-
         return false;
     }
 
