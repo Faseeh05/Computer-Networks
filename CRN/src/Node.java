@@ -311,14 +311,17 @@ public class Node implements NodeInterface {
     }
 
     @Override
-    public boolean CAS(String key, String currentValue, String newValue) {
-        if (!dataStore.containsKey(key)) {
-            dataStore.put(key, newValue);
-            return true;
-        } else if (dataStore.get(key).equals(currentValue)) {
-            dataStore.put(key, newValue);
+    public boolean CAS(String key, String expectedValue, String updatedValue) {
+        String existingValue = dataStore.get(key);
+        if (existingValue == null) {
+            dataStore.put(key, updatedValue);
             return true;
         }
+        if (existingValue.equals(expectedValue)) {
+            dataStore.put(key, updatedValue);
+            return true;
+        }
+
         return false;
     }
 
@@ -326,8 +329,8 @@ public class Node implements NodeInterface {
         listenerThread = new Thread(() -> {
             try {
                 while (true) handleIncomingMessages(0);
-            } catch (Exception e) {
-                if (debug) System.err.println("Listener error: " + e.getMessage());
+            } catch (Exception ex) {
+                if (debug) System.err.println("Listener encountered an error: " + ex.getMessage());
             }
         });
         listenerThread.setDaemon(true);
