@@ -70,7 +70,7 @@ public class Node implements NodeInterface {
             try {
                 socket.receive(packet);
                 String message = new String(packet.getData(), 0, packet.getLength());
-                if (debug) System.out.println("📩 Received: " + message);
+                if (debug) System.out.println("Received: " + message);
                 processMessage(message, packet.getAddress(), packet.getPort());
             } catch (SocketTimeoutException ignored) {}
         }
@@ -119,11 +119,11 @@ public class Node implements NodeInterface {
                 case "I" -> {}
             }
         } catch (Exception e) {
-            if (debug) System.err.println("⚠️ Error: " + e.getMessage());
+            if (debug) System.err.println("Error: " + e.getMessage());
         }
     }
 
-    private void handleWrite(String tx, String payload, InetAddress addr, int port) {
+    private void handleWrite(String tx, String payload, InetAddress address, int port) {
         String[] kv = extractKeyValue(payload);
         if (kv != null) {
             dataStore.put(kv[0], kv[1]);
@@ -135,19 +135,19 @@ public class Node implements NodeInterface {
                     }
                 } catch (Exception ignored) {}
             }
-            sendResponse(addr, port, tx + " X A");
+            sendResponse(address, port, tx + " X A");
         }
     }
 
-    private void handleRead(String tx, String payload, InetAddress addr, int port) {
+    private void handleRead(String tx, String payload, InetAddress address, int port) {
         String key = unwrap(payload);
         if (key != null) {
             String value = dataStore.get(key);
-            sendResponse(addr, port, tx + (value != null ? " S Y " + wrap(value) : " S N"));
+            sendResponse(address, port, tx + (value != null ? " S Y " + wrap(value) : " S N"));
         }
     }
 
-    private void handleNearestNodes(String tx, String hash, InetAddress addr, int port) {
+    private void handleNearestNodes(String tx, String hash, InetAddress address, int port) {
         List<String> nodeList = new ArrayList<>(nodeDirectory.keySet());
         nodeList.removeIf(name -> !name.startsWith("N:"));
         nodeList.sort(Comparator.comparingInt(name -> safeDistance(hash, name)));
@@ -159,18 +159,18 @@ public class Node implements NodeInterface {
             reply.append(" ").append(wrap(name)).append(wrap(info.getAddress().getHostAddress() + ":" + info.getPort()));
         }
 
-        sendResponse(addr, port, reply.toString());
+        sendResponse(address, port, reply.toString());
     }
 
     private int safeDistance(String hash, String name) {
         try {
-            return computeDistance(hash, hashify(name));
+            return computeDistance(hash, computeHash(name));
         } catch (Exception e) {
             return Integer.MAX_VALUE;
         }
     }
 
-    private void forwardMessage(String data, InetAddress addr, int port) {
+    private void forwardMessage(String data, InetAddress address, int port) {
         String[] content = data.split(" ", 2);
         if (content.length < 2) return;
 
@@ -179,7 +179,7 @@ public class Node implements NodeInterface {
 
         if (target != null) {
             if (target.equals(nodeId)) {
-                processMessage(innerMsg, addr, port);
+                processMessage(innerMsg, address, port);
             } else if (nodeDirectory.containsKey(target)) {
                 InetSocketAddress next = nodeDirectory.get(target);
                 sendResponse(next.getAddress(), next.getPort(), "V " + wrap(target) + innerMsg);
@@ -194,9 +194,9 @@ public class Node implements NodeInterface {
             }
             byte[] data = msg.getBytes();
             socket.send(new DatagramPacket(data, data.length, address, port));
-            if (debug) System.out.println("📤 Sent: " + msg);
+            if (debug) System.out.println("Sent: " + msg);
         } catch (IOException e) {
-            if (debug) System.err.println("❌ Send error: " + e.getMessage());
+            if (debug) System.err.println("Send error: " + e.getMessage());
         }
     }
 
@@ -212,7 +212,7 @@ public class Node implements NodeInterface {
     private String attemptLookup(String key, boolean existenceCheck) throws Exception {
         if (dataStore.containsKey(key)) return dataStore.get(key);
 
-        String hash = hashify(key);
+        String hash = computeHash(key);
         Set<String> visited = new HashSet<>();
         Queue<String> toQuery = new LinkedList<>(nodeDirectory.keySet());
 
@@ -327,19 +327,26 @@ public class Node implements NodeInterface {
             try {
                 while (true) handleIncomingMessages(0);
             } catch (Exception e) {
-                if (debug) System.err.println("🧵 Listener error: " + e.getMessage());
+                if (debug) System.err.println("Listener error: " + e.getMessage());
             }
         });
         listenerThread.setDaemon(true);
         listenerThread.start();
     }
 
-    private String hashify(String value) throws Exception {
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        byte[] hashBytes = digest.digest(value.getBytes("UTF-8"));
+    private String computeHash(String value) throws Exception {
+        MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+        byte[] hashBytes = sha256.digest(value.getBytes("UTF-8"));
         StringBuilder hash = new StringBuilder();
-        for (byte b : hashBytes) hash.append(String.format("%02x", b));
+        for (int i = 0; i < hashBytes.length; i++) {
+            byte b = hashBytes[i];
+            hash.append(String.format("%02x", b));
+        }
         return hash.toString();
+    }
+
+    private String generateTxnId() {
+        return "" + (char) ('A' + random.nextInt(26)) + (char) ('A' + random.nextInt(26));
     }
 
     private int computeDistance(String h1, String h2) {
@@ -352,9 +359,5 @@ public class Node implements NodeInterface {
             }
         }
         return 256;
-    }
-
-    private String generateTxnId() {
-        return "" + (char) ('A' + random.nextInt(26)) + (char) ('A' + random.nextInt(26));
     }
 }
